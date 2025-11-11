@@ -35,32 +35,58 @@ RELATIONSHIPS = {
 # Objects for context
 OBJECTS = ['candies', 'cake', 'books']
 
-# Verbs
-ADD_VERBS = ['gained', 'received', 'added', 'got', 'obtained', 'found']
-SUBTRACT_VERBS = ['lost', 'gave away', 'spent', 'donated', 'sacrificed']
+# Positive start verbs (REQUIRED for every sentence)
+POSITIVE_START_VERBS = ['had', 'possessed', 'saved', 'held']
 
-# Sentence templates
-VERBOSE_TEMPLATES = [
-    "My {rel1} {name1}, who is a {occupation} and loves {obj}, {verb} {amt1}$ from {context}, while {poss} {rel2} {name2} {verb2} {amt2}$ as a gift.",
-    "{name1}, a {occupation} from the neighborhood, {verb} {amt1}$ by selling {obj}, and {poss} {rel2} {name2} {verb2} {amt2}$ unexpectedly.",
-    "During the festival, {name1} {verb} {amt1}$ while {poss} {rel2} {name2}, who teaches at the local school, {verb2} {amt2}$.",
-    "Last week, {name1} {verb} {amt1}$ in exchange for {obj}, and {poss} friend {name2} {verb2} {amt2}$ from a lottery.",
-    "{name1} has been saving for months and finally {verb} {amt1}$, meanwhile {poss} {rel2} {name2} {verb2} {amt2}$ on {obj}.",
+# Transaction verbs
+ADD_VERBS = ['gained', 'received', 'added', 'got', 'obtained', 'found', '+']
+SUBTRACT_VERBS = ['lost', 'gave away', 'spent', 'donated', 'sacrificed', '-']
+
+# Sentence templates - Enforcing clear flow pattern
+SUBTRACTION_TEMPLATES = [
+    "{name} {positive_verb} {amt1}$ {positive_context} but then {subtract_verb} {amt2}$ {reason}.",
+    "My {rel} {name} {positive_verb} {amt1}$ {positive_context} but then {subtract_verb} {amt2}$ {reason}.",
+    "{name}, who works as a {occupation}, {positive_verb} {amt1}$ {positive_context} but then {subtract_verb} {amt2}$ {reason}.",
+]
+
+ADDITION_TWO_OPERAND_TEMPLATES = [
+    "{name} {positive_verb} {amt1}$ {context} and also {add_verb} {amt2}$ {source}.",
+    "My {rel} {name} {positive_verb} {amt1}$ {context} and also {add_verb} {amt2}$ {source}.",
+    "{name}, who works as a {occupation}, {positive_verb} {amt1}$ {context} and also {add_verb} {amt2}$ {source}.",
 ]
 
 SINGLE_OPERAND_TEMPLATES = [
-    "{name1} has {amt1}$ in {poss} wallet.",
-    "My {rel1} {name1} currently possesses {amt1}$ after the transaction.",
-    "{name1}, who works as a {occupation}, owns {amt1}$ in savings.",
-    "After all expenses, {name1} is left with {amt1}$.",
+    "{name} {positive_verb} {amt1}$ {context}.",
+    "My {rel} {name} {positive_verb} {amt1}$ {context}.",
+    "{name}, who works as a {occupation}, {positive_verb} {amt1}$ {context}.",
 ]
 
 MULTI_OPERAND_TEMPLATES = [
-    "{names_list} each have {amounts}$ respectively in their pockets after sharing {obj}.",
-    "The group including {names_list} gained {amounts}$ respectively from the fundraiser for {obj}.",
-    "{names_list} received {amounts}$ as their shares from selling {obj}.",
-    "After the event, {names_list} found themselves with {amounts}$ respectively.",
+    "{name1} {positive_verb} {amt1}$, {name2} {positive_verb2} {amt2}$, and {name3} {positive_verb3} {amt3}$ {context}.",
 ]
+
+# Context phrases
+POSITIVE_CONTEXTS = [
+    "from his teaching job", "in his wallet", "in her savings", "from his work", "from her business", 
+    "in cash", "from his father", "from her mother", "after selling {obj}", "from teaching", "from the market"
+]
+
+SUBTRACTION_REASONS = [
+    "on {obj}", "while shopping", "during the trip", "for repairs", 
+    "as a donation", "for {obj}", "to charity"
+]
+
+ADDITION_SOURCES = [
+    "from a bonus", "from the lottery", "as an extra", "from a side job",
+    "by selling {obj}", "from teaching", "from the market"
+]
+
+GENERAL_CONTEXTS = [
+    "in his pocket", "in her bag", "from work", "from business", 
+    "after the sale", "as savings", "from teaching", "from the market"
+]
+
+OCCUPATIONS = ['teacher', 'doctor', 'engineer', 'artist', 'farmer', 'student', 'manager', 'driver']
 
 
 def detect_intent(sentence: str, operands: List[int]) -> str:
@@ -74,87 +100,93 @@ def detect_intent(sentence: str, operands: List[int]) -> str:
     sentence_lower = sentence.lower()
     
     # Check for subtract cues
-    has_subtract = any(verb in sentence_lower for verb in ['lost', 'gave away', 'spent', 'donated', 'sacrificed']) or ' - ' in sentence
+    has_subtract = any(verb in sentence_lower for verb in SUBTRACT_VERBS)
     
-    # Check for add cues (overrides subtract if present)
-    has_add = any(verb in sentence_lower for verb in ['gained', 'received', 'added', 'got', 'obtained', 'found']) or ' + ' in sentence
+    # Check for add cues
+    has_add = any(verb in sentence_lower for verb in ADD_VERBS)
     
-    # Intent logic
+    # Intent logic - subtraction only if exactly 2 operands and subtract verb, and no add verbs
     if len(operands) == 2 and has_subtract and not has_add:
-        return f"{operands[0]} - {operands[1]}"
+        # Ensure first operand > second operand for subtraction
+        if operands[0] > operands[1]:
+            return f"{operands[0]} - {operands[1]}"
+        else:
+            # If not properly ordered, treat as addition
+            return "sum: " + ", ".join(map(str, operands))
     else:
         return "sum: " + ", ".join(map(str, operands))
 
 
-def get_same_faith_pair() -> Tuple[str, Dict, Dict]:
-    """Get a random same-faith name pair with genders and relationships."""
+def get_random_person() -> Tuple[str, Dict]:
+    """Get a random person with name, gender, and relationship."""
     faith = random.choice(['hindu', 'muslim', 'christian'])
+    gender = random.choice(['male', 'female'])
+    name = random.choice(NAMES[faith][gender])
+    rel = random.choice(RELATIONSHIPS[gender])
     
-    # Randomly pick genders for two people
-    gender1 = random.choice(['male', 'female'])
-    gender2 = random.choice(['male', 'female'])
-    
-    name1 = random.choice(NAMES[faith][gender1])
-    name2 = random.choice(NAMES[faith][gender2])
-    
-    # Ensure no same-sex romantic pairs (no LGBT)
-    rel1 = random.choice(RELATIONSHIPS[gender1])
-    rel2 = random.choice(RELATIONSHIPS[gender2])
-    
-    # Avoid boyfriend-boyfriend, girlfriend-girlfriend
-    if gender1 == gender2:
-        if rel1 in ['boyfriend', 'girlfriend']:
-            rel1 = random.choice(['friend', 'teacher', 'brother' if gender1 == 'male' else 'sister'])
-        if rel2 in ['boyfriend', 'girlfriend']:
-            rel2 = random.choice(['friend', 'teacher', 'brother' if gender2 == 'male' else 'sister'])
-    
-    person1 = {'name': name1, 'gender': gender1, 'rel': rel1}
-    person2 = {'name': name2, 'gender': gender2, 'rel': rel2}
-    
-    return faith, person1, person2
+    person = {'name': name, 'gender': gender, 'rel': rel, 'faith': faith}
+    return faith, person
 
 
 def generate_two_operand_sentence() -> Dict[str, Any]:
     """Generate a sentence with exactly 2 operands (90% of data)."""
-    # Generate two operands
-    amt1 = random.randint(1, 100)
-    amt2 = random.randint(1, 100)
+    # Generate two operands - ensure first is larger for subtraction
+    amt1 = random.randint(50, 100)  # Higher range for first operand
+    amt2 = random.randint(1, 49)    # Lower range for second operand
     
-    # Decide intent (50/50 add vs subtract for variety)
+    # Ensure first operand is always larger than second for subtraction cases
+    # For addition cases, we still maintain the constraint but it's less critical
+    
+    # Decide intent (approximately 50/50 split)
     is_subtract = random.random() < 0.5
-    
-    # For subtract, ensure first > second
-    if is_subtract and amt1 < amt2:
-        amt1, amt2 = amt2, amt1
     
     operands = [amt1, amt2]
     
-    faith, person1, person2 = get_same_faith_pair()
+    # Get person
+    faith, person = get_random_person()
+    
+    # Always start with positive verb
+    positive_verb = random.choice(POSITIVE_START_VERBS)
     
     if is_subtract:
-        verb1 = random.choice(SUBTRACT_VERBS)
-        verb2 = random.choice(SUBTRACT_VERBS)
+        subtract_verb = random.choice(SUBTRACT_VERBS)
+        template = random.choice(SUBTRACTION_TEMPLATES)
+        
+        # Fill subtraction template
+        sentence = template.format(
+            name=person['name'],
+            rel=person['rel'],
+            occupation=random.choice(OCCUPATIONS),
+            positive_verb=positive_verb,
+            subtract_verb=subtract_verb,
+            amt1=operands[0],
+            amt2=operands[1],
+            obj=random.choice(OBJECTS),
+            positive_context=random.choice(POSITIVE_CONTEXTS).format(
+                obj=random.choice(OBJECTS)
+            ),
+            reason=random.choice(SUBTRACTION_REASONS).format(
+                obj=random.choice(OBJECTS)
+            )
+        )
     else:
-        verb1 = random.choice(ADD_VERBS)
-        verb2 = random.choice(ADD_VERBS)
-    
-    template = random.choice(VERBOSE_TEMPLATES)
-    
-    # Fill template
-    sentence = template.format(
-        name1=person1['name'],
-        name2=person2['name'],
-        rel1=person1['rel'],
-        rel2=person2['rel'],
-        verb=verb1,
-        verb2=verb2,
-        amt1=operands[0],
-        amt2=operands[1],
-        obj=random.choice(OBJECTS),
-        occupation=random.choice(['teacher', 'doctor', 'engineer', 'artist', 'farmer']),
-        poss='his' if person2['gender'] == 'male' else 'her',
-        context=random.choice(['selling goods', 'work bonus', 'inheritance', 'winning a bet'])
-    )
+        add_verb = random.choice(ADD_VERBS)
+        template = random.choice(ADDITION_TWO_OPERAND_TEMPLATES)
+        
+        # Fill addition template
+        sentence = template.format(
+            name=person['name'],
+            rel=person['rel'],
+            occupation=random.choice(OCCUPATIONS),
+            positive_verb=positive_verb,
+            add_verb=add_verb,
+            amt1=operands[0],
+            amt2=operands[1],
+            context=random.choice(GENERAL_CONTEXTS),
+            source=random.choice(ADDITION_SOURCES).format(
+                obj=random.choice(OBJECTS)
+            )
+        )
     
     return {'prompt': sentence, 'operands': operands}
 
@@ -163,19 +195,19 @@ def generate_single_operand_sentence() -> Dict[str, Any]:
     """Generate a sentence with exactly 1 operand (3% of data)."""
     operands = [random.randint(1, 100)]
     
-    faith = random.choice(['hindu', 'muslim', 'christian'])
-    gender = random.choice(['male', 'female'])
-    name = random.choice(NAMES[faith][gender])
-    rel = random.choice(RELATIONSHIPS[gender])
+    # Get person
+    faith, person = get_random_person()
+    positive_verb = random.choice(POSITIVE_START_VERBS)
     
     template = random.choice(SINGLE_OPERAND_TEMPLATES)
     
     sentence = template.format(
-        name1=name,
-        rel1=rel,
+        name=person['name'],
+        rel=person['rel'],
+        occupation=random.choice(OCCUPATIONS),
+        positive_verb=positive_verb,
         amt1=operands[0],
-        poss='his' if gender == 'male' else 'her',
-        occupation=random.choice(['teacher', 'doctor', 'engineer', 'artist', 'farmer'])
+        context=random.choice(GENERAL_CONTEXTS)
     )
     
     return {'prompt': sentence, 'operands': operands}
@@ -186,24 +218,56 @@ def generate_multi_operand_sentence() -> Dict[str, Any]:
     num_operands = random.randint(3, 5)
     operands = [random.randint(1, 100) for _ in range(num_operands)]
     
-    faith = random.choice(['hindu', 'muslim', 'christian'])
+    # Get persons (3 different people for 3+ operand sentences)
+    faith1, person1 = get_random_person()
+    faith2, person2 = get_random_person()
+    faith3, person3 = get_random_person()
     
-    # Generate multiple names from same faith
-    names = []
-    for _ in range(num_operands):
-        gender = random.choice(['male', 'female'])
-        names.append(random.choice(NAMES[faith][gender]))
+    # Ensure all people are of the same faith
+    # If not, adjust person2 and person3 to match person1's faith
+    if faith2 != faith1:
+        person2['name'] = random.choice(NAMES[faith1][person2['gender']])
+        person2['faith'] = faith1
     
-    names_list = ', '.join(names[:-1]) + f', and {names[-1]}'
-    amounts = ', '.join(map(str, operands))
+    if faith3 != faith1:
+        person3['name'] = random.choice(NAMES[faith1][person3['gender']])
+        person3['faith'] = faith1
     
-    template = random.choice(MULTI_OPERAND_TEMPLATES)
+    positive_verb = random.choice(POSITIVE_START_VERBS)
+    positive_verb2 = random.choice(POSITIVE_START_VERBS)
+    positive_verb3 = random.choice(POSITIVE_START_VERBS)
     
-    sentence = template.format(
-        names_list=names_list,
-        amounts=amounts,
-        obj=random.choice(OBJECTS)
-    )
+    if num_operands == 3:
+        template = random.choice(MULTI_OPERAND_TEMPLATES)
+        sentence = template.format(
+            name1=person1['name'],
+            name2=person2['name'],
+            name3=person3['name'],
+            positive_verb=positive_verb,
+            positive_verb2=positive_verb2,
+            positive_verb3=positive_verb3,
+            amt1=operands[0],
+            amt2=operands[1],
+            amt3=operands[2],
+            context=random.choice(GENERAL_CONTEXTS)
+        )
+    else:
+        # For 4-5 operands, build a custom sentence
+        people_names = [person1['name'], person2['name'], person3['name']]
+        # Add more names if needed
+        while len(people_names) < num_operands:
+            _, extra_person = get_random_person()
+            # Ensure same faith
+            if extra_person['faith'] != faith1:
+                extra_person['name'] = random.choice(NAMES[faith1][extra_person['gender']])
+            people_names.append(extra_person['name'])
+        
+        possession_phrases = []
+        for i in range(num_operands):
+            verb = random.choice(POSITIVE_START_VERBS)
+            possession_phrases.append(f"{people_names[i]} {verb} {operands[i]}$")
+        
+        sentence = ", ".join(possession_phrases[:-1]) + f", and {possession_phrases[-1]} {random.choice(GENERAL_CONTEXTS)}."
     
     return {'prompt': sentence, 'operands': operands}
 
@@ -247,10 +311,57 @@ def generate_dataset(num_samples: int, include_intent: bool = True) -> List[Dict
     return dataset
 
 
+def validate_dataset(dataset: List[Dict]) -> None:
+    """Validate that the dataset follows all rules."""
+    errors = []
+    
+    for i, sample in enumerate(dataset):
+        prompt = sample['prompt']
+        operands = sample.get('operands', [])
+        
+        # Check 1: Every sentence must contain a positive start verb
+        contains_positive_verb = any(verb in prompt for verb in POSITIVE_START_VERBS)
+        if not contains_positive_verb:
+            errors.append(f"Sample {i}: Does not contain positive start verb: {prompt[:50]}...")
+        
+        # Check 2: For subtraction cases, first operand > second operand
+        if len(operands) == 2 and 'intent' in sample and '-' in sample['intent'] and 'sum:' not in sample['intent']:
+            # Extract the numbers from the intent string
+            parts = sample['intent'].split(' - ')
+            if len(parts) == 2:
+                try:
+                    a, b = int(parts[0]), int(parts[1])
+                    if a <= b:
+                        errors.append(f"Sample {i}: Subtraction but first operand <= second: {a} <= {b}")
+                except ValueError:
+                    errors.append(f"Sample {i}: Invalid subtraction intent format: {sample['intent']}")
+        
+        # Check 3: No mixed intent cues (only for 2 operand cases)
+        sentence_lower = prompt.lower()
+        has_subtract = any(verb in sentence_lower for verb in SUBTRACT_VERBS)
+        has_add = any(verb in sentence_lower for verb in ADD_VERBS)
+        
+        # Only check for mixed cues in 2-operand cases
+        if len(operands) == 2:
+            if has_subtract and has_add:
+                errors.append(f"Sample {i}: Mixed intent cues detected: {prompt[:50]}...")
+    
+    if errors:
+        print(f"VALIDATION ERRORS ({len(errors)} found):")
+        for error in errors[:10]:  # Show first 10 errors
+            print(f"  - {error}")
+        if len(errors) > 10:
+            print(f"  ... and {len(errors) - 10} more errors")
+    else:
+        print("✓ Dataset validation passed!")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generate synthetic intent detection training data')
     parser.add_argument('--scale', type=int, default=100, choices=range(1, 101),
                         help='Percentage of data to generate (1-100, default: 100)')
+    parser.add_argument('--validate', action='store_true', 
+                        help='Run validation on generated data')
     args = parser.parse_args()
     
     # Set seed for reproducibility
@@ -265,6 +376,11 @@ def main():
     
     print(f"Generating {testing_count} testing samples...")
     testing_data = generate_dataset(testing_count, include_intent=False)
+    
+    # Run validation if requested
+    if args.validate:
+        print("\nValidating training data...")
+        validate_dataset(training_data)
     
     # Save to JSON files
     with open('training_data.json', 'w') as f:
